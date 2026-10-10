@@ -1,97 +1,172 @@
 # Coffre bancaire local — Vaultwarden
 
-POC autonome pour Kalamar, hors des modules frontend et backend de l’équipe. Une instance Vaultwarden avec quatre comptes personnels. Le serveur tourne sur le PC ; aucun tunnel ni service de stockage distant n’est configuré.
+Chaque membre de l’équipe lance **sa propre instance sur son PC** et crée **un compte de test personnel sur cette instance**. Le téléphone et le navigateur du même membre se connectent à ce même compte. Il n’est pas nécessaire de créer quatre comptes sur chaque PC.
 
-## État au moment de la préparation
+Les instances sont indépendantes : cloner ce dépôt reproduit le code et la configuration, pas les coffres, les comptes, les certificats ni les passkeys des autres. Dans un produit bancaire, une instance pourrait héberger plusieurs comptes clients séparés ; ce n’est pas l’organisation choisie pour les postes du POC.
 
-Adresse Wi-Fi observée sur la machine de démonstration : **172.20.10.2** ; passerelle : **172.20.10.1**. Adapter cette adresse au PC qui lance le projet. Les deux services ont été lancés et la réponse du coffre a été vérifiée en HTTPS avec validation du certificat sous Windows. Le téléchargement du certificat public depuis Safari iPhone a été confirmé. L’accès au coffre HTTPS et la synchronisation sur iPhone restent à confirmer. La création d’une règle pare-feu a été refusée par Windows faute de droits administrateur ; aucune règle n’a été ajoutée par l’agent.
+Le serveur reste local, avec Docker Compose, Vaultwarden, SQLite et Caddy pour HTTPS. Aucun tunnel n’est configuré. Voir le [schéma](docs/schema.md).
 
-## Lancer
+## Prérequis sur chaque PC
 
-Ouvrir Docker Desktop et attendre que le moteur soit disponible. Dans PowerShell 7, ouvrir ce dossier puis lancer :
+* Docker Desktop démarré avec son moteur Linux et Docker Compose disponible.
+* PowerShell 7 pour le script de lancement.
+* **Extension Bitwarden installée dans le navigateur utilisé pour la démo**, même si le coffre propose automatiquement son installation. Le coffre web ou l’application desktop seuls ne remplacent pas cette extension dans notre parcours navigateur.
+* Application **Bitwarden Password Manager** sur le téléphone. Ne pas la confondre avec l’application Bitwarden Authenticator.
+* Pour les passkeys mobiles : **iOS 17+ ou Android 14+**, sous réserve de la compatibilité de l’appareil, du navigateur et de la version de Bitwarden. [Passkeys Bitwarden](https://bitwarden.com/help/storing-passkeys/)
+
+## 1 — Choisir le réseau et l’adresse du PC
+
+Le PC et le téléphone doivent pouvoir communiquer directement sur le réseau local. Cela peut fonctionner sur un Wi-Fi domestique ou sur un partage de connexion ; il faut le tester.
+
+**Sur un « free-wifi », un Wi-Fi public ou invité, ce n’est pas garanti.** Certains réseaux activent l’isolation des clients ou filtrent les ports. Avoir Internet et le même nom de Wi-Fi ne prouve pas que le téléphone puisse joindre le PC. Si un portail captif est présent, connecter/authentifier les deux appareils avant le test.
+
+Depuis PowerShell :
+
+```powershell
+ipconfig
+```
+
+Relever l’IPv4 de l’interface réellement connectée au réseau du téléphone. Ne pas prendre l’adresse d’une interface Docker, WSL, VMware ou VirtualBox. Le script accepte une IPv4 privée : 10.x.x.x, 172.16.x.x à 172.31.x.x, ou 192.168.x.x.
+
+Dans ce guide, **172.20.10.2 est uniquement l’exemple observé sur le PC de Kalamar**. Chaque membre doit remplacer cette valeur par celle de son propre PC dans les commandes et adresses. Si le réseau n’attribue pas d’adresse privée utilisable, privilégier un réseau de démonstration contrôlé plutôt que modifier les protections du script.
+
+Sur le téléphone, `localhost` désigne le téléphone, pas le PC.
+
+## 2 — Lancer son instance
+
+Depuis la racine du dépôt, dans PowerShell 7 :
 
 ```powershell
 ./Start-Poc.ps1 -Ip 172.20.10.2 -TrustWindows
 ```
 
-Le script utilise uniquement les deux conteneurs de ce projet. Il crée les volumes persistants, attend la réponse de Vaultwarden, exporte le certificat public et, avec `-TrustWindows`, ajoute cette autorité locale au magasin de certificats de l’utilisateur Windows. Les premières images nécessitent Internet pour être téléchargées.
+Le script crée les volumes persistants, démarre Vaultwarden/Caddy, valide la configuration HTTPS, exporte le certificat racine **public** et, avec `-TrustWindows`, l’installe dans le magasin utilisateur Windows. Les images nécessitent Internet au premier téléchargement.
 
-Adresse du coffre sur Windows et iPhone : **https://172.20.10.2:8443**. Utiliser la même adresse dans l’extension Windows et l’application Bitwarden iPhone, dans le choix « serveur auto-hébergé ».
+| Usage | Exemple à adapter à son PC |
+|---|---|
+| Coffre HTTPS | `https://172.20.10.2:8443` |
+| Certificat public pour le téléphone | `http://172.20.10.2:8081/bank-poc-root.cer` |
 
-Si l’IP du PC change, relancer avec la nouvelle IP et mettre à jour les clients. Les volumes conservent le coffre et l’autorité de certification. Un changement de réseau peut changer l’IP ; il ne doit pas entraîner une suppression des volumes.
+Le port HTTP 8081 ne sert que le certificat public ; il ne sert pas le coffre. Les clés privées de l’autorité restent dans le volume Caddy et ne doivent pas être distribuées.
 
-## Installer le certificat sur iPhone
+### Tester le réseau avant le certificat
 
-1. Garder le partage de connexion actif et le PC connecté.
-2. Dans Safari, ouvrir **http://172.20.10.2:8081/bank-poc-root.cer**. Cette adresse HTTP ne sert que le certificat public ; elle ne sert pas le coffre.
-3. Autoriser le téléchargement, puis installer le profil dans Réglages → Général → VPN et gestion de l’appareil (ou « Profil téléchargé »).
-4. Dans Réglages → Général → Informations → Réglages des certificats, activer la confiance complète pour l’autorité locale Caddy de ce POC.
-5. Ouvrir **https://172.20.10.2:8443** et vérifier l’absence d’erreur de certificat.
+Sur le téléphone, ouvrir l’adresse HTTP du certificat. Si le téléchargement est proposé, le téléphone peut joindre le PC sur ce port. Cela ne confirme pas encore le port HTTPS 8443 ni la synchronisation du coffre.
 
-Si Safari ne peut pas atteindre le PC, il faut résoudre la connectivité du partage de connexion et le pare-feu avant de tester le coffre. Installer le certificat n’ouvre aucun port réseau.
+Si la page ne s’ouvre pas :
 
-Le certificat est public. Les clés privées de l’autorité restent dans le volume Caddy ; ne jamais exporter ou partager ce volume pour installer un certificat sur un téléphone. Vérifier qu’on installe bien le certificat généré par ce PC. La confiance accordée à une autorité est une modification de sécurité de l’appareil ; retirer cette autorité après la démo.
+1. Vérifier IP, serveur démarré et connexion des deux appareils au réseau prévu.
+2. Vérifier le portail captif et le pare-feu du PC.
+3. Si le réseau public isole les appareils, utiliser un partage de connexion ou un réseau privé contrôlé, puis refaire le test. Le certificat et une règle Windows ne contournent pas une isolation imposée par le Wi-Fi.
+4. Si un accès local reste impossible, un tunnel HTTPS serait une autre architecture ; il n’est pas configuré dans ce dépôt.
 
-Source : [installation et confiance iOS](https://support.apple.com/en-us/102390).
+Source sur le mécanisme d’isolation : [documentation Cisco](https://documentation.meraki.com/Wireless/Operate_and_Maintain/How_Tos/Firewall_and_Traffic_Shaping/Wireless_Client_Isolation). Cela décrit une possibilité, pas la configuration du réseau utilisé au hackathon.
 
-## Autoriser le réseau si le pare-feu bloque
+### Pare-feu Windows, seulement si nécessaire
 
-Depuis un PowerShell **administrateur**, créer une règle limitée au réseau actuellement observé :
+Dans un PowerShell **administrateur**, adapter les deux adresses ci-dessous : l’IP du PC et celle du téléphone, visibles dans leurs paramètres réseau. Cette règle limite l’accès à ce téléphone, sur les deux ports du POC.
 
 ```powershell
-New-NetFirewallRule -Name 'HackathonBankPoc' -DisplayName 'Hackathon Bank POC' -Direction Inbound -Action Allow -Protocol TCP -LocalAddress 172.20.10.2 -LocalPort 8443,8081 -RemoteAddress 172.20.10.0/28 -Profile Any
+$pocPcIp = '172.20.10.2'
+$pocPhoneIp = '172.20.10.1'
+New-NetFirewallRule -Name 'HackathonBankPoc' -DisplayName 'Hackathon Bank POC' -Direction Inbound -Action Allow -Protocol TCP -LocalAddress $pocPcIp -LocalPort 8443,8081 -RemoteAddress $pocPhoneIp -Profile Any
 ```
 
-Ne pas désactiver le pare-feu. Adapter IP et sous-réseau si le réseau change. Même avec cette règle, le chemin iPhone → PC doit être vérifié : les caractéristiques du partage de connexion peuvent empêcher certaines communications locales.
+Les valeurs sont des exemples ; l’adresse du téléphone n’est pas nécessairement celle de la passerelle sur un Wi-Fi partagé. Si la règle existe déjà, examiner sa configuration avant de la modifier. Ne pas désactiver le pare-feu. Ajouter une règle ne supprime pas une isolation entre appareils sur le réseau.
 
-## Créer quatre comptes
+## 3 — Configurer l’extension Bitwarden sur le PC
 
-**Une instance commune, un compte par client.** Les quatre membres de la démonstration représentent quatre clients et créent quatre comptes séparés. Un même client utilise le même compte sur Windows et iPhone : il n’y a pas un nouveau compte par appareil, ni un compte partagé par toute l’équipe.
+1. **Installer l’extension officielle Bitwarden** pour le navigateur de la démo, y compris si son installation a été suggérée automatiquement.
+2. Sur son écran de connexion, sélectionner **Serveur auto-hébergé / Self-hosted**.
+3. Saisir l’adresse HTTPS de son PC, par exemple `https://172.20.10.2:8443`.
+4. Enregistrer ; se connecter avec le compte créé dans la section suivante et ouvrir le coffre.
+5. Dans les réglages de l’extension, vérifier que la proposition d’enregistrer et utiliser les passkeys est activée.
+6. Lors de la création d’une passkey, sélectionner Bitwarden ; ne pas supposer qu’elle a été enregistrée dans Vaultwarden si Windows Hello, Apple ou Google a été choisi.
 
-1. Ouvrir **https://172.20.10.2:8443** après reconnaissance du certificat.
-2. Choisir l’action de création de compte du coffre web Vaultwarden.
-3. Saisir son email et choisir son mot de passe maître personnel, distinct du mot de passe bancaire.
-4. Configurer l’application/extension Bitwarden avec le serveur auto-hébergé, puis se connecter à ce même compte.
-5. Créer ensuite la passkey depuis l’application wallet ou une page WebAuthn adaptée et la conserver dans Bitwarden.
+Sources : [connexion des clients](https://bitwarden.com/help/change-client-environment/), [passkeys](https://bitwarden.com/help/storing-passkeys/).
 
-Le client web sur l’appareil initialise le chiffrement ; le serveur enregistre le compte et le coffre chiffré. L’inscription du coffre n’est pas automatisée par la connexion bancaire dans ce POC. La création effective des quatre comptes reste à confirmer.
+## 4 — Créer son compte de test
 
-Chaque membre s’inscrit avec une adresse email valide qu’il contrôle et un mot de passe maître qu’il choisit lui-même. Aucun mot de passe n’est créé par le script. Aucun SMTP n’est configuré : les fonctions nécessitant un email ne sont pas validées dans ce POC.
+**Un compte par client, pas un compte par appareil.** Pour les répliques de développement, chaque membre crée son compte sur sa propre instance et utilise ce même compte sur son PC et son téléphone. Des comptes supplémentaires sont facultatifs, notamment pour tester la séparation entre clients.
 
-Les inscriptions sont ouvertes pour ce démarrage sur le réseau local. Après création des quatre comptes :
+1. Ouvrir le coffre HTTPS sur le PC et choisir la création de compte.
+2. Saisir une adresse email que l’on contrôle et choisir son mot de passe maître personnel, distinct du mot de passe bancaire.
+3. Se connecter à ce compte dans l’extension et l’application mobile, avec la même adresse de serveur.
+4. Créer ensuite la passkey depuis l’application wallet ou une page WebAuthn adaptée.
+
+Le client web sur l’appareil initialise le chiffrement ; le serveur enregistre le compte et les données chiffrées. Notre backend bancaire ne crée pas le mot de passe maître et ne provisionne pas automatiquement ce compte de coffre. Aucun SMTP n’est configuré : les fonctions nécessitant un email ne sont pas validées ici.
+
+Après création de son compte, fermer les inscriptions sur son instance :
 
 ```powershell
 ./Start-Poc.ps1 -Ip 172.20.10.2 -CloseSignups -TrustWindows
 ```
 
-Les coffres restent personnels. Pas de création d’organisation, pas d’invitations, pas d’accès d’urgence et pas de panneau administrateur configuré. Le fait que le serveur héberge quatre comptes ne donne pas aux membres accès aux coffres des autres. Le compte administrateur Windows et les logiciels clients restent dans le modèle de confiance.
+Pas de création d’organisation, d’invitations, d’accès d’urgence ni de panneau administrateur configuré. Deux instances différentes ne partagent pas automatiquement les comptes ou passkeys, même si l’email et le mot de passe saisis sont identiques.
 
-## Test de démonstration
+## 5 — Setup iPhone
 
-1. Ouvrir deux comptes distincts et vérifier qu’ils présentent des coffres distincts.
-2. Ajouter un élément de test dans le compte de Kalamar sur Windows et vérifier sa synchronisation sur iPhone.
-3. Activer Bitwarden comme fournisseur de passkeys sur iPhone, et utiliser l’extension sur Windows. La compatibilité entre les versions choisies doit être testée.
-4. Créer une passkey dans une page wallet/test adaptée, puis vérifier son utilisation sur le deuxième appareil avec le premier indisponible.
+1. Garder le téléphone et le PC sur le réseau choisi.
+2. Dans Safari, télécharger `http://172.20.10.2:8081/bank-poc-root.cer`, avec l’IP de son PC.
+3. Installer le profil dans **Réglages → Général → VPN et gestion de l’appareil**, ou **Profil téléchargé**.
+4. Dans **Général → Informations → Réglages des certificats**, activer la confiance complète pour l’autorité Caddy de cette instance.
+5. Ouvrir `https://172.20.10.2:8443` et vérifier l’absence d’avertissement de certificat.
+6. Installer Bitwarden Password Manager ; sélectionner **Serveur auto-hébergé**, saisir cette adresse HTTPS et se connecter au compte personnel.
+7. Dans **Réglages → Général → Remplissage automatique et mots de passe**, activer le remplissage des mots de passe/clés d’accès et sélectionner Bitwarden. Sur les anciennes versions : **Mots de passe → Options des mots de passe**.
+8. Lors de la création d’une passkey, choisir Bitwarden comme fournisseur.
 
-**L’adresse IP HTTPS ci-dessus convient au coffre et à sa synchronisation. Elle ne définit pas le RP ID du wallet.** Les cérémonies WebAuthn du wallet demandent un nom de domaine admissible et stable, accessible depuis les deux appareils. Une page wallet sur `localhost` n’est pas automatiquement réutilisable sur iPhone. Ce composant n’est pas déployé par cette configuration.
+Installer le certificat de **sa propre instance**, pas celui d’un autre membre. Sources : [confiance iOS](https://support.apple.com/en-us/102390), [configuration Bitwarden iOS](https://bitwarden.com/help/auto-fill-ios/).
 
-Le succès de synchronisation d’un élément ne prouve pas encore une signature passkey ni le contrôle du même smart account. Ces preuves doivent être collectées séparément.
+## 6 — Setup Android
 
-## Arrêt et conservation
+**Android 14+ est requis pour conserver/utiliser des passkeys avec Bitwarden.** La configuration doit être vérifiée sur le modèle et les versions utilisés ; elle n’a pas été exécutée par l’agent.
+
+1. Connecter Android au réseau permettant de joindre son PC.
+2. Télécharger dans le navigateur `http://172.20.10.2:8081/bank-poc-root.cer`, en remplaçant l’IP.
+3. Dans les paramètres Android, rechercher **Installer un certificat**. Le chemin usuel est **Sécurité et confidentialité → Autres paramètres de sécurité → Chiffrement et identifiants** ; il varie selon le fabricant. Pour faire confiance au serveur HTTPS, installer le fichier comme **certificat d’autorité / CA**, lorsqu’il est proposé. Ce n’est pas un certificat client ni une configuration d’authentification Wi-Fi. Android peut demander le code de l’appareil et afficher un avertissement concernant l’autorité ajoutée.
+4. Ouvrir le coffre HTTPS dans le navigateur et vérifier le certificat.
+5. Installer **Bitwarden Password Manager**, puis choisir **Serveur auto-hébergé** et saisir l’adresse HTTPS de son PC. Si la version de l’application propose un champ de certificat pour le serveur, suivre son écran/documentation ; vérifier ensuite la connexion effective. L’acceptation du certificat par le navigateur ne prouve pas son acceptation par l’application.
+6. Se connecter au même compte personnel que dans l’extension du PC.
+7. Dans **Bitwarden → Paramètres → Remplissage automatique → Gestion des clés d’accès / Passkey management**, continuer vers les réglages Android et sélectionner Bitwarden comme fournisseur de passkeys.
+8. Créer/utiliser une passkey sur la page de test et vérifier que Bitwarden est effectivement choisi.
+
+Si Bitwarden refuse le certificat alors que le navigateur fonctionne, consigner OS, version de l’application et erreur ; la prise en charge des autorités utilisateur dépend du client et doit être vérifiée. Ne pas désactiver la validation HTTPS. Un certificat reconnu publiquement et un domaine stable seraient une autre configuration à préparer si nécessaire.
+
+Les passkeys Bitwarden sur Android ne prennent pas en charge les credentials non découvrables utilisés comme second facteur ; prévoir et tester le credential découvrable du parcours wallet.
+
+Sources : [certificats Bitwarden](https://bitwarden.com/help/certificates/), [gestion des certificats Android](https://support.google.com/pixelphone/answer/2844832?hl=en), [fournisseur Android](https://bitwarden.com/help/auto-fill-android/), [passkeys Android](https://bitwarden.com/help/storing-passkeys/). Les menus Google documentés sont indicatifs et peuvent varier.
+
+## 7 — Vérifier la synchronisation et préparer la démo
+
+1. Ajouter un élément de test depuis le PC et vérifier qu’il apparaît dans le même compte sur le téléphone après synchronisation.
+2. Créer une passkey avec le fournisseur Bitwarden et vérifier sa disponibilité sur le deuxième appareil.
+3. Rendre l’appareil initial indisponible, puis obtenir une signature vérifiée depuis le deuxième. Une simple présence dans la liste ou un message de synchronisation ne suffit pas.
+4. Pour le scénario de récupération, répéter depuis une installation ou un profil vierge, connecté au **même serveur et même compte**.
+5. Pour le wallet réel, vérifier la même adresse de smart account et une opération autorisée. Cette intégration reste à réaliser.
+6. Facultatif : créer un deuxième compte sur une instance pour tester la séparation entre clients.
+
+**L’adresse IP du coffre ne définit pas le RP ID du wallet.** Le frontend WebAuthn exige un nom d’hôte admissible et stable, accessible depuis les deux appareils. Une passkey créée sur localhost ne devient pas automatiquement utilisable sur le téléphone. Ce frontend n’est pas déployé par ce dépôt.
+
+## Changer de réseau, arrêter et conserver
+
+Si l’IP du PC change, relancer avec la nouvelle IP et mettre à jour l’adresse de serveur dans l’extension et le téléphone. Les volumes conservent les coffres et l’autorité locale. Chaque instance génère sa propre autorité ; une nouvelle instance ne partage pas automatiquement la confiance de l’ancienne.
 
 ```powershell
 docker compose stop
 ```
 
-Cette commande conserve les volumes. Éviter toute commande supprimant les volumes : ils contiennent les coffres et l’autorité locale. Après la démo, retirer le profil de certificat sur iPhone et la règle `HackathonBankPoc` si elle a été créée. Le certificat public exporté peut être ouvert sous Windows pour relever son empreinte et supprimer uniquement cette autorité du magasin utilisateur.
+L’arrêt conserve les volumes. Ne pas supprimer les volumes pour changer l’IP : ils contiennent les coffres et les clés de l’autorité. Après la démo, retirer uniquement le certificat de cette instance et la règle pare-feu si elle a été créée.
 
-## Configuration et références
+## État de vérification et configuration
 
-Images fixées : Vaultwarden **1.37.4** et Caddy **2.11.7-alpine**, versions publiées consultées le 10 octobre 2026. La résolution effective des images sera vérifiée au téléchargement. HTTPS est terminé par Caddy ; Vaultwarden n’a aucun port publié directement sur l’hôte. Seuls 8443 (coffre HTTPS) et 8081 (certificat public HTTP) sont publiés sur l’adresse Wi-Fi choisie ; 8443 est aussi disponible en boucle locale.
+Sur le PC de Kalamar, les deux services ont été lancés ; Vaultwarden était sain et le coffre répondait HTTP 200 en HTTPS avec certificat validé sous Windows. Le téléchargement du certificat dans Safari iPhone a été confirmé. Confiance/connexion mobile, Android, free-wifi, passkeys et reprise du wallet restent à tester ; les instructions ne constituent pas des résultats.
+
+Images : Vaultwarden **1.37.4** et Caddy **2.11.7-alpine**, téléchargées pour le lancement initial. Vaultwarden n’a pas de port publié directement ; HTTPS est terminé par Caddy. Ports : 8443 pour le coffre, 8081 pour son certificat public, sur l’IP choisie ; 8443 aussi en boucle locale.
 
 * [Vaultwarden](https://github.com/dani-garcia/vaultwarden)
 * [Version Vaultwarden](https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.4)
 * [Proxy recommandé](https://github.com/dani-garcia/vaultwarden/wiki/Proxy-examples)
 * [Autorité locale Caddy](https://caddyserver.com/docs/caddyfile/directives/tls)
+* [Schéma du POC](docs/schema.md)
 
-Ce POC illustre l’hébergement d’un coffre chiffré par la banque ; il ne démontre pas à lui seul une garantie absolue de confidentialité, une récupération après perte totale ou la sécurité d’une application wallet distribuée par l’hébergeur.
+Ce POC illustre un hébergement de coffres chiffrés. Il ne prouve pas à lui seul une confidentialité absolue ni une récupération après perte totale des passkeys et des moyens d’ouvrir le coffre.
