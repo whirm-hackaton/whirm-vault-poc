@@ -29,8 +29,9 @@ flowchart TB
 
     subgraph BANK["VPS : coffre bancaire simulé"]
         VW["Vaultwarden — vault.whirm.dev<br/>Une instance commune sur VPS / Dokploy<br/>Un compte et coffre chiffré par client<br/>Stockage et synchronisation"]
-        API["Backend bancaire<br/>Identité et adresse du wallet"]
     end
+
+    API["Backend bancaire<br/>Identité et adresse du wallet"]
 
     BW <-->|"Synchronisation chiffrée"| VW
     APP <-->|"Identité et métadonnées publiques"| API
