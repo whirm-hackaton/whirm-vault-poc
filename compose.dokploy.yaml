@@ -1,0 +1,20 @@
+# HTTPS and routing are configured in Dokploy > Domains.
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.37.4
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN to the public HTTPS URL in Dokploy}
+      SIGNUPS_ALLOWED: "${SIGNUPS_ALLOWED:-false}"
+      INVITATIONS_ALLOWED: "false"
+      ORG_CREATION_USERS: "none"
+      EMERGENCY_ACCESS_ALLOWED: "false"
+      SHOW_PASSWORD_HINT: "false"
+      DISABLE_ICON_DOWNLOAD: "true"
+    expose:
+      - "80"
+    volumes:
+      - vault_data:/data
+
+volumes:
+  vault_data:
