@@ -1,4 +1,6 @@
-# Coffre bancaire local — Vaultwarden
+# Coffre bancaire — Vaultwarden
+
+**Déploiement VPS commun :** suivre le [guide Dokploy](docs/dokploy.md) avec `compose.dokploy.yaml` et `https://vault.whirm.dev`. Chaque utilisateur y possède son compte personnel. Ce déploiement est à effectuer et vérifier ; les instructions ci-dessous décrivent le mode local alternatif.
 
 Chaque membre de l’équipe lance **sa propre instance sur son PC** et crée **un compte de test personnel sur cette instance**. Le téléphone et le navigateur du même membre se connectent à ce même compte. Il n’est pas nécessaire de créer quatre comptes sur chaque PC.
 
