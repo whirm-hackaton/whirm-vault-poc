@@ -1,0 +1,24 @@
+{
+    auto_https disable_redirects
+    skip_install_trust
+    default_sni {$POC_IP}
+}
+
+https://{$POC_IP}, https://localhost {
+    tls internal
+    encode gzip
+    reverse_proxy vaultwarden:80
+}
+
+# Only the public CA certificate is available here; no vault or private keys.
+http://{$POC_IP}:8081 {
+    @certificate path /bank-poc-root.cer
+    handle @certificate {
+        root * /public
+        header Content-Type application/x-x509-ca-cert
+        file_server
+    }
+    handle {
+        respond "Bank POC: public certificate only" 404
+    }
+}
