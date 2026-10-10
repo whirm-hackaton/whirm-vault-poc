@@ -1,6 +1,6 @@
 # Vaultwarden sur VPS avec Dokploy
 
-Le VPS héberge une instance commune. Chaque utilisateur crée son propre compte de coffre, utilisé sur ses appareils. Les coffres locaux existants ne sont pas transférés automatiquement sur le VPS.
+Le VPS héberge une instance commune. Chaque utilisateur crée son propre compte de coffre, utilisé sur ses appareils. 
 
 ## 1. DNS et accès réseau
 
@@ -12,7 +12,7 @@ Dépôt : whirm-hackaton/whirm-vault-poc, branche main.
 Dans le champ Compose Path / chemin du fichier Compose, sélectionner :
 `compose.dokploy.yaml` (ou `./compose.dokploy.yaml` si le champ demande ce format).
 
-Le fichier compose.yaml reste réservé au POC local avec Caddy. La variante Dokploy utilise le proxy de Dokploy pour HTTPS, le service vaultwarden sur son port interne 80 et un volume persistant vault_data monté sur /data.
+Le fichier compose.dokploy.yaml utilise le proxy de Dokploy pour HTTPS, le service vaultwarden sur son port interne 80 et un volume persistant vault_data monté sur /data.
 
 ## 3. Environment
 
@@ -46,7 +46,7 @@ Dokploy ajoute automatiquement les labels et le réseau nécessaires au service 
 
 ## 5. Déployer et tester
 
-Cliquer Deploy, suivre Deployments et Logs, puis ouvrir https://vault.whirm.dev depuis le PC et le téléphone. Le navigateur doit accepter le certificat sans profil local à installer.
+Cliquer Deploy, suivre Deployments et Logs, puis ouvrir https://vault.whirm.dev depuis le PC et le téléphone. Le navigateur doit accepter le certificat sans profil à installer.
 Créer les comptes personnels nécessaires au POC depuis le coffre web. Ensuite remplacer SIGNUPS_ALLOWED=true par SIGNUPS_ALLOWED=false dans Environment, enregistrer et redéployer.
 
 Conserver le volume /data lors des redéploiements : il contient les comptes et les coffres chiffrés. Prévoir une sauvegarde cohérente de ce volume avec la base SQLite ; la synchronisation entre appareils ne remplace pas une sauvegarde du serveur.
